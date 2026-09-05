@@ -28,6 +28,10 @@ pub enum TokenType {
     Print,
     Halt,
     Number(i32),
+    LabelDef(String),
+    Label(String),
+    Char(char),
+    Str(String),
 }
 
 #[derive(Debug)]
@@ -80,8 +84,10 @@ fn generate_keyword(chars: &Vec<char>, i: &mut usize) -> Token {
         *i += 1;
     }
 
-    let token_type = check_builtin_keywords(&text)
-        .expect("Error: Identificadores personalizados no implementados todavía.");
+    let token_type = match check_builtin_keywords(&text) {
+        Some(t) => t,
+        None => check_label_type(chars, i, text.clone()),
+    };
 
     Token {
         token_type,
@@ -109,6 +115,85 @@ fn generate_number(chars: &Vec<char>, i: &mut usize) -> Token {
     }
 }
 
+fn generate_char(chars: &Vec<char>, i: &mut usize) -> Token {
+    *i += 1;
+
+    let mut c = chars[*i];
+    if c == '\\' {
+        *i += 1;
+        c = valid_escape_character(chars[*i]).expect("Error: Carácter de escape inválido.");
+    }
+    *i += 1;
+
+    if chars[*i] != '\'' {
+        panic!("Error: Se esperaba una comilla simple de cierre.");
+    }
+
+    *i += 1;
+
+    Token {
+        token_type: TokenType::Char(c),
+        text: c.to_string(),
+        line: 0,
+        character: 0,
+    }
+}
+
+fn generate_string(chars: &Vec<char>, i: &mut usize) -> Token {
+    *i += 1;
+    let mut text = String::new();
+
+    while *i < chars.len() && chars[*i] != '"' {
+        let mut c = chars[*i];
+        if c == '\\' {
+            *i += 1;
+            c = valid_escape_character(chars[*i]).expect("Error: Carácter de escape inválido.");
+        }
+        text.push(c);
+        *i += 1;
+    }
+
+    if *i >= chars.len() {
+        panic!("Error: Se esperaba una comilla doble de cierre.");
+    }
+
+    *i += 1;
+
+    Token {
+        token_type: TokenType::Str(text.clone()),
+        text,
+        line: 0,
+        character: 0,
+    }
+}
+
+fn check_label_type(chars: &Vec<char>, i: &usize, name: String) -> TokenType {
+    if chars[*i] == ':' {
+        TokenType::LabelDef(name)
+    } else {
+        TokenType::Label(name)
+    }
+}
+
+fn skip_comment(chars: &Vec<char>, i: &mut usize) {
+    while *i < chars.len() && chars[*i] != '\n' {
+        *i += 1;
+    }
+}
+
+fn valid_escape_character(c: char) -> Option<char> {
+    match c {
+        'n' => Some('\n'),
+        't' => Some('\t'),
+        'r' => Some('\r'),
+        '0' => Some('\0'),
+        '\\' => Some('\\'),
+        '\'' => Some('\''),
+        '"' => Some('"'),
+        _ => None,
+    }
+}
+
 pub fn generate_instructions(tokens: &Vec<Token>) -> Vec<Inst> {
     let mut instructions: Vec<Inst> = Vec::new();
     let mut i = 0;
@@ -118,8 +203,23 @@ pub fn generate_instructions(tokens: &Vec<Token>) -> Vec<Inst> {
             TokenType::Nop => instructions.push(Inst::Nop),
             TokenType::Push => {
                 i += 1;
-                let value = expect_number(tokens, i);
-                instructions.push(Inst::Push(value));
+                match &tokens[i].token_type {
+                    TokenType::Number(value) => {
+                        instructions.push(Inst::Push(*value));
+                    }
+                    TokenType::Char(value) => {
+                        instructions.push(Inst::Push(*value as i32));
+                    }
+                    TokenType::Str(value) => {
+                        for c in value.chars() {
+                            instructions.push(Inst::Push(c as i32));
+                        }
+                    }
+                    _ => panic!(
+                        "Error: Se esperaba un número, carácter o string después de 'push' en la posición {}",
+                        i
+                    ),
+                }
             }
             TokenType::Pop => instructions.push(Inst::Pop),
             TokenType::Dup => instructions.push(Inst::Dup),
@@ -163,10 +263,19 @@ pub fn generate_instructions(tokens: &Vec<Token>) -> Vec<Inst> {
             TokenType::Print => instructions.push(Inst::Print),
             TokenType::Halt => instructions.push(Inst::Halt),
             TokenType::Number(_) => {
-                panic!(
-                    "Error: No se esperaba un número suelto en la posición {}",
-                    i
-                );
+                panic!("Error: Number suelto detectado, se esperaba un 'push' antes.");
+            }
+            TokenType::LabelDef(_) => {
+                panic!("Error: Las definiciones de etiquetas no están implementadas todavía.");
+            }
+            TokenType::Label(_) => {
+                panic!("Error: Las definiciones de etiquetas no están implementadas todavía.");
+            }
+            TokenType::Char(_) => {
+                panic!("Error: Carácter suelto detectado, se esperaba un 'push' antes.");
+            }
+            TokenType::Str(_) => {
+                panic!("Error: String suelto detectado, se esperaba un 'push' antes.");
             }
         }
         i += 1;
@@ -181,6 +290,7 @@ fn expect_number(tokens: &Vec<Token>, i: usize) -> i32 {
     }
     match tokens[i].token_type {
         TokenType::Number(value) => value,
+        TokenType::Char(c) => c as i32,
         _ => panic!(
             "Error: Se esperaba un número en la posición {}, pero se encontró otro token.",
             i
@@ -197,6 +307,12 @@ pub fn lexer(file_name: &str) -> Vec<Token> {
             tokens.push(generate_keyword(&chars, &mut i));
         } else if chars[i].is_numeric() {
             tokens.push(generate_number(&chars, &mut i));
+        } else if chars[i] == '\'' {
+            tokens.push(generate_char(&chars, &mut i));
+        } else if chars[i] == '"' {
+            tokens.push(generate_string(&chars, &mut i));
+        } else if chars[i] == '#' {
+            skip_comment(&chars, &mut i);
         } else {
             i += 1;
         }

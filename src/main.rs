@@ -7,6 +7,7 @@ use machine::Machine;
 
 use std::env::args;
 use std::fs::write;
+use std::path::Path;
 use std::process::exit;
 
 fn write_program_to_file(instructions: &Vec<Inst>, file_path: &str) {
@@ -31,11 +32,17 @@ fn read_program_from_file(file_path: &str) -> Vec<Inst> {
     instructions
 }
 
+fn chop_file_by_dot(file_name: &str) -> String {
+    let path = Path::new(file_name);
+    let new_path = path.with_extension("fexe");
+    new_path.to_string_lossy().to_string()
+}
+
 fn main() {
     let args: Vec<String> = args().collect();
 
     if args.len() < 2 {
-        eprintln!("[!] Error.\n\tUsage: {} <file_name.tasm>", args[0]);
+        eprintln!("[!] Error.\n\tUsage: {} <file_name.fasm>", args[0]);
         exit(1);
     }
 
@@ -47,27 +54,11 @@ fn main() {
 
     let mut ip: usize = 0;
 
-    // let program: Vec<Inst> = vec![Inst::Push(10), Inst::Push(5), Inst::Add];
+    let output_file = chop_file_by_dot(file_name);
 
-    /*
-    let program: Vec<Inst> = vec![
-        Inst::Push(3),  // 0
-        Inst::Dup,      // 1  <- acá vuelve el salto
-        Inst::Print,    // 2
-        Inst::Push(1),  // 3
-        Inst::Sub,      // 4
-        Inst::Dup,      // 5
-        Inst::Nzjmp(1), // 6  <- si no es 0, saltar a la posición 1
-        Inst::Pop,      // 7
-        Inst::Halt,     // 8
-    ];
-    */
+    write_program_to_file(&program, &output_file);
 
-    write_program_to_file(&program, "program.test");
-
-    // let mut machine = Machine::new(program);
-
-    let loaded_instructions = read_program_from_file("program.test");
+    let loaded_instructions = read_program_from_file(&output_file);
     let mut machine = Machine::new(loaded_instructions);
 
     let instructions = machine.instructions.clone();
