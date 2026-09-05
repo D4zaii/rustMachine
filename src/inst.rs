@@ -9,7 +9,9 @@ pub enum Inst {
     Div,
     Mod,
     Dup,
+    Indup(i32),
     Swap,
+    Inswap(i32),
     Cmpe,
     Cmpne,
     Cmpg,
@@ -55,47 +57,57 @@ impl Inst {
             Inst::Dup => {
                 vec![8u8]
             }
-            Inst::Swap => {
-                vec![9u8]
+            Inst::Indup(value) => {
+                let mut bytes = vec![9u8];
+                bytes.extend(value.to_le_bytes());
+                bytes
             }
-            Inst::Cmpe => {
+            Inst::Swap => {
                 vec![10u8]
             }
-            Inst::Cmpne => {
-                vec![11u8]
+            Inst::Inswap(value) => {
+                let mut bytes = vec![11u8];
+                bytes.extend(value.to_le_bytes());
+                bytes
             }
-            Inst::Cmpg => {
+            Inst::Cmpe => {
                 vec![12u8]
             }
-            Inst::Cmpl => {
+            Inst::Cmpne => {
                 vec![13u8]
             }
-            Inst::Cmpge => {
+            Inst::Cmpg => {
                 vec![14u8]
             }
-            Inst::Cmple => {
+            Inst::Cmpl => {
                 vec![15u8]
             }
+            Inst::Cmpge => {
+                vec![16u8]
+            }
+            Inst::Cmple => {
+                vec![17u8]
+            }
             Inst::Jmp(value) => {
-                let mut bytes = vec![16u8];
-                bytes.extend(value.to_le_bytes());
-                bytes
-            }
-            Inst::Zjmp(value) => {
-                let mut bytes = vec![17u8];
-                bytes.extend(value.to_le_bytes());
-                bytes
-            }
-            Inst::Nzjmp(value) => {
                 let mut bytes = vec![18u8];
                 bytes.extend(value.to_le_bytes());
                 bytes
             }
+            Inst::Zjmp(value) => {
+                let mut bytes = vec![19u8];
+                bytes.extend(value.to_le_bytes());
+                bytes
+            }
+            Inst::Nzjmp(value) => {
+                let mut bytes = vec![20u8];
+                bytes.extend(value.to_le_bytes());
+                bytes
+            }
             Inst::Print => {
-                vec![19u8]
+                vec![21u8]
             }
             Inst::Halt => {
-                vec![20u8]
+                vec![22u8]
             }
         }
     }
@@ -116,30 +128,40 @@ impl Inst {
             6 => (Inst::Div, 1),
             7 => (Inst::Mod, 1),
             8 => (Inst::Dup, 1),
-            9 => (Inst::Swap, 1),
-            10 => (Inst::Cmpe, 1),
-            11 => (Inst::Cmpne, 1),
-            12 => (Inst::Cmpg, 1),
-            13 => (Inst::Cmpl, 1),
-            14 => (Inst::Cmpge, 1),
-            15 => (Inst::Cmple, 1),
-            16 => {
+            9 => {
+                let value_bytes: [u8; 4] = bytes[1..5].try_into().unwrap();
+                let value = i32::from_le_bytes(value_bytes);
+                (Inst::Indup(value), 5)
+            }
+            10 => (Inst::Swap, 1),
+            11 => {
+                let value_bytes: [u8; 4] = bytes[1..5].try_into().unwrap();
+                let value = i32::from_le_bytes(value_bytes);
+                (Inst::Inswap(value), 5)
+            }
+            12 => (Inst::Cmpe, 1),
+            13 => (Inst::Cmpne, 1),
+            14 => (Inst::Cmpg, 1),
+            15 => (Inst::Cmpl, 1),
+            16 => (Inst::Cmpge, 1),
+            17 => (Inst::Cmple, 1),
+            18 => {
                 let value_bytes: [u8; 4] = bytes[1..5].try_into().unwrap();
                 let value = i32::from_le_bytes(value_bytes);
                 (Inst::Jmp(value), 5)
             }
-            17 => {
+            19 => {
                 let value_bytes: [u8; 4] = bytes[1..5].try_into().unwrap();
                 let value = i32::from_le_bytes(value_bytes);
                 (Inst::Zjmp(value), 5)
             }
-            18 => {
+            20 => {
                 let value_bytes: [u8; 4] = bytes[1..5].try_into().unwrap();
                 let value = i32::from_le_bytes(value_bytes);
                 (Inst::Nzjmp(value), 5)
             }
-            19 => (Inst::Print, 1),
-            20 => (Inst::Halt, 1),
+            21 => (Inst::Print, 1),
+            22 => (Inst::Halt, 1),
             _ => panic!("Error: Tag de instrucción desconocido: {}", tag),
         }
     }

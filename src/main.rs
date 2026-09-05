@@ -1,8 +1,13 @@
 mod inst;
 mod machine;
+mod tasmlexer;
 
 use inst::Inst;
 use machine::Machine;
+
+use std::env::args;
+use std::fs::write;
+use std::process::exit;
 
 fn write_program_to_file(instructions: &Vec<Inst>, file_path: &str) {
     let mut buffer: Vec<u8> = Vec::new();
@@ -10,7 +15,7 @@ fn write_program_to_file(instructions: &Vec<Inst>, file_path: &str) {
         buffer.extend(inst.to_bytes());
     }
 
-    std::fs::write(file_path, buffer).expect("Error: No se pudo escribir el archivo.");
+    write(file_path, buffer).expect("Error: No se pudo escribir el archivo.");
 }
 
 fn read_program_from_file(file_path: &str) -> Vec<Inst> {
@@ -27,9 +32,36 @@ fn read_program_from_file(file_path: &str) -> Vec<Inst> {
 }
 
 fn main() {
+    let args: Vec<String> = args().collect();
+
+    if args.len() < 2 {
+        eprintln!("[!] Error.\n\tUsage: {} <file_name.tasm>", args[0]);
+        exit(1);
+    }
+
+    let file_name = &args[1];
+
+    let tokens = tasmlexer::lexer(file_name);
+    let program = tasmlexer::generate_instructions(&tokens);
+    println!("{:?}", tokens);
+
     let mut ip: usize = 0;
 
-    let program: Vec<Inst> = vec![Inst::Push(10), Inst::Push(5), Inst::Add];
+    // let program: Vec<Inst> = vec![Inst::Push(10), Inst::Push(5), Inst::Add];
+
+    /*
+    let program: Vec<Inst> = vec![
+        Inst::Push(3),  // 0
+        Inst::Dup,      // 1  <- acá vuelve el salto
+        Inst::Print,    // 2
+        Inst::Push(1),  // 3
+        Inst::Sub,      // 4
+        Inst::Dup,      // 5
+        Inst::Nzjmp(1), // 6  <- si no es 0, saltar a la posición 1
+        Inst::Pop,      // 7
+        Inst::Halt,     // 8
+    ];
+    */
 
     write_program_to_file(&program, "program.test");
 
@@ -146,8 +178,8 @@ fn main() {
                     if ip >= instructions.len() {
                         panic!("Error: No se puede saltar fuera de los limites.")
                     }
+                    continue;
                 }
-                continue;
             }
             Inst::Nzjmp(target) => {
                 if machine.pop() != 0 {
@@ -155,11 +187,17 @@ fn main() {
                     if ip >= instructions.len() {
                         panic!("Error: No se puede saltar fuera de los limites.")
                     }
+                    continue;
                 }
-                continue;
             }
             Inst::Halt => {
                 break;
+            }
+            Inst::Indup(value) => {
+                machine.index_dup(*value);
+            }
+            Inst::Inswap(value) => {
+                machine.index_swap(*value);
             }
         }
 
